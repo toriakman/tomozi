@@ -1,9 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
-import sqlite3, secrets, statistics
+import os, sqlite3, secrets, statistics
 from pathlib import Path
 
 app = Flask(__name__)
-DB = Path(__file__).with_name("apple_tasting.db")
+# Point this at persistent storage when hosted; local previews keep their own database.
+DATA_DIR = Path(os.environ.get("APPLE_TASTING_DATA_DIR", Path(__file__).parent))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB = DATA_DIR / "apple_tasting.db"
 
 STARTER_APPLES = [
     "Ambrosia",

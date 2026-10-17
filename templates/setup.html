@@ -2,13 +2,44 @@
 <a class="back" href="{{url_for('dashboard',admin=t.admin_token)}}">← Host dashboard</a>
 <div class="eyebrow">SETUP</div><h1>{{t.name}}</h1><p class="lede">Put the apples in the exact order they'll appear on the tasting table.</p>
 <form method="post"><div id="lineup">
-{% if current %}{% for x in current %}<div class="apple-row"><b>#{{loop.index}}</b><input name="apple" list="apples" value="{{x.name}}" required><button type="button" class="ghost remove">×</button></div>{% endfor %}
-{% else %}<div class="apple-row"><b>#1</b><input name="apple" list="apples" placeholder="Search or type a custom apple" required><button type="button" class="ghost remove">×</button></div>{% endif %}
-</div><datalist id="apples">{% for a in apples %}<option value="{{a}}">{% endfor %}</datalist>
+{% if current %}{% for x in current %}<div class="apple-row"><b>#{{loop.index}}</b><input name="apple" autocomplete="off" value="{{x.name}}" required><button type="button" class="ghost remove">×</button></div>{% endfor %}
+{% else %}<div class="apple-row"><b>#1</b><input name="apple" autocomplete="off" placeholder="Search or type a custom apple" required><button type="button" class="ghost remove">×</button></div>{% endif %}
+</div>
 <div class="actions"><button type="button" class="secondary" id="add">+ Add apple</button><button>Save lineup</button></div></form>
 {% endblock %}{% block script %}<script>
 const line=document.querySelector('#lineup');
-function renumber(){[...line.children].forEach((r,i)=>r.querySelector('b').textContent='#'+(i+1))}
-document.querySelector('#add').onclick=()=>{if(line.children.length>=50)return;let d=document.createElement('div');d.className='apple-row';d.innerHTML='<b></b><input name="apple" list="apples" placeholder="Search or type a custom apple" required><button type="button" class="ghost remove">×</button>';line.append(d);renumber()}
+const appleNames={{apples|tojson}};
+let pickerId=0;
+function attachPicker(input){
+ const wrap=document.createElement('div'); wrap.className='apple-picker';
+ input.replaceWith(wrap); wrap.append(input);
+ const menu=document.createElement('div'); menu.className='apple-options'; menu.id='apple-options-'+(++pickerId); menu.role='listbox'; menu.hidden=true; wrap.append(menu);
+ input.setAttribute('role','combobox'); input.setAttribute('aria-autocomplete','list'); input.setAttribute('aria-controls',menu.id); input.setAttribute('aria-expanded','false');
+ let matches=[], active=-1;
+ function close(){menu.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1}
+ function choose(name){input.value=name;input.dispatchEvent(new Event('change',{bubbles:true}));close();input.focus()}
+ function render(){
+  matches=appleNames.filter(name=>name.toLowerCase().includes(input.value.trim().toLowerCase())); active=-1; input.removeAttribute('aria-activedescendant');menu.replaceChildren();
+  if(!matches.length){close();return}
+  const heading=document.createElement('div');heading.className='apple-options-heading';heading.textContent='Apple varieties';menu.append(heading);
+  matches.forEach((name,i)=>{const option=document.createElement('div');option.role='option';option.id=menu.id+'-'+i;option.className='apple-option';option.textContent=name;option.setAttribute('aria-selected','false');option.addEventListener('mousedown',e=>e.preventDefault());option.addEventListener('click',()=>choose(name));menu.append(option)});
+  const hint=document.createElement('div');hint.className='apple-options-hint';hint.textContent=matches.length?'Or type your own apple variety.':'No matching varieties. You can use the name you typed.';menu.append(hint);
+  menu.hidden=false;input.setAttribute('aria-expanded','true');
+ }
+ input.addEventListener('focus',render);input.addEventListener('click',()=>{if(menu.hidden)render()});input.addEventListener('input',render);input.addEventListener('blur',close);
+ input.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();close();return}
+  if(e.key==='Enter'&&!menu.hidden&&active>=0){e.preventDefault();choose(matches[active]);return}
+  if(e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;
+  e.preventDefault();if(menu.hidden)render();if(!matches.length)return;
+  active=(active+(e.key==='ArrowDown'?1:active<0?0:-1)+matches.length)%matches.length;
+  [...menu.querySelectorAll('[role=option]')].forEach((option,i)=>option.setAttribute('aria-selected',String(i===active)));
+  const selected=document.getElementById(menu.id+'-'+active);input.setAttribute('aria-activedescendant',selected.id);selected.scrollIntoView({block:'nearest'});
+ });
+}
+line.querySelectorAll('input[name=apple]').forEach(attachPicker);
+function renumber(){[...line.children].forEach((r,i)=>(r.querySelector('b').textContent='#'+(i+1),r.querySelector('input').setAttribute('aria-label','Apple '+(i+1)),r.querySelector('.remove').setAttribute('aria-label','Remove apple '+(i+1))))}
+document.querySelector('#add').onclick=()=>{if(line.children.length>=50)return;let d=document.createElement('div');d.className='apple-row';d.innerHTML='<b></b><input name="apple" autocomplete="off" placeholder="Search or type a custom apple" required><button type="button" class="ghost remove">×</button>';line.append(d);attachPicker(d.querySelector('input'));renumber()}
+renumber();
 line.onclick=e=>{if(e.target.classList.contains('remove')&&line.children.length>1){e.target.parentElement.remove();renumber()}}
 </script>{% endblock %}

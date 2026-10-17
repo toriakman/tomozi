@@ -6,9 +6,79 @@ app = Flask(__name__)
 DB = Path(__file__).with_name("apple_tasting.db")
 
 STARTER_APPLES = [
-"Honeycrisp","Fuji","Gala","Granny Smith","Pink Lady","Cosmic Crisp","SweeTango","Jazz","Envy",
-"Ambrosia","Golden Delicious","Red Delicious","McIntosh","Cortland","Jonathan","Jonagold",
-"Braeburn","Opal","SnapDragon","EverCrisp"
+    "Ambrosia",
+    "Arkansas Black",
+    "Aura",
+    "Autumn Glory",
+    "Blondee",
+    "Braeburn",
+    "Cameo",
+    "Candy Crisp",
+    "Cortland",
+    "Cosmic Crisp",
+    "Crimson Gold",
+    "Cripps Pink",
+    "Empire",
+    "Envy",
+    "EverCrisp",
+    "Fuji",
+    "Gala",
+    "Golden Delicious",
+    "Golden Russet",
+    "GoldRush",
+    "Granny Smith",
+    "Green Dragon",
+    "Honeycrisp",
+    "Hunnyz",
+    "Jazz",
+    "Jonagold",
+    "Jonathan",
+    "Juici",
+    "Kanzi",
+    "Kiku",
+    "King David",
+    "Kissabel Rouge",
+    "Koru (Plumac)",
+    "Lady Alice",
+    "Lemonade",
+    "Lucy Glo",
+    "Lucy Rose",
+    "Ludacrisp",
+    "Macoun",
+    "McIntosh",
+    "Melrose",
+    "MiApple",
+    "Modi",
+    "Mutsu (Crispin)",
+    "Newtown Pippin",
+    "Opal",
+    "Pazazz",
+    "Pink Lady",
+    "Pink Pearl",
+    "Pinova (Piñata)",
+    "Rave",
+    "Red Delicious",
+    "Rockit",
+    "Rome",
+    "Ruby Frost",
+    "Ruby Jon",
+    "Silken",
+    "Smitten",
+    "SnapDragon",
+    "SnowSweet",
+    "Stayman Winesap",
+    "SugarBee",
+    "Sundowner (Cripps Red)",
+    "Sunrise Magic",
+    "SweeTango",
+    "Sweetie",
+    "Sweet Orin",
+    "Top Secret",
+    "Wild Twist",
+    "Williams Pride",
+    "WineCrisp",
+    "Wolf River",
+    "Zestar!"
 ]
 
 def db():
@@ -142,6 +212,9 @@ def taste(ptoken):
     p=c.execute("SELECT * FROM participants WHERE token=?",(ptoken,)).fetchone()
     if not p: c.close(); abort(404)
     t=c.execute("SELECT * FROM tastings WHERE id=?",(p["tasting_id"],)).fetchone()
+    if p["submitted"]:
+        c.close()
+        return redirect(url_for("submitted",ptoken=ptoken))
     rows=c.execute("""SELECT ta.id,ta.position,e.rating,e.notes FROM tasting_apples ta
       LEFT JOIN entries e ON e.tasting_apple_id=ta.id AND e.participant_id=?
       WHERE ta.tasting_id=? ORDER BY ta.position""",(p["id"],t["id"])).fetchall()
@@ -151,10 +224,13 @@ def taste(ptoken):
 @app.post("/api/p/<ptoken>/entry")
 def save_entry(ptoken):
     data=request.get_json(force=True)
-    c=db(); p=c.execute("SELECT * FROM participants WHERE token=?",(ptoken,)).fetchone()
+    c=db()
+    c.execute("BEGIN IMMEDIATE")
+    p=c.execute("SELECT * FROM participants WHERE token=?",(ptoken,)).fetchone()
     if not p: c.close(); abort(404)
     t=c.execute("SELECT * FROM tastings WHERE id=?",(p["tasting_id"],)).fetchone()
     if t["status"]!="OPEN": c.close(); return jsonify(error="Tasting is closed"),409
+    if p["submitted"]: c.close(); return jsonify(error="Your ratings have already been submitted and cannot be changed."),409
     taid=int(data["tasting_apple_id"])
     valid=c.execute("SELECT id FROM tasting_apples WHERE id=? AND tasting_id=?",(taid,t["id"])).fetchone()
     if not valid: c.close(); abort(400)
@@ -167,15 +243,19 @@ def save_entry(ptoken):
     c.execute("""INSERT INTO entries(participant_id,tasting_apple_id,rating,notes) VALUES(?,?,?,?)
       ON CONFLICT(participant_id,tasting_apple_id) DO UPDATE SET rating=excluded.rating,notes=excluded.notes""",
       (p["id"],taid,rating,notes))
-    c.execute("UPDATE participants SET submitted=0 WHERE id=?",(p["id"],))
     c.commit(); c.close()
     return jsonify(ok=True)
 
 @app.post("/p/<ptoken>/submit")
 def submit(ptoken):
-    c=db(); p=c.execute("SELECT * FROM participants WHERE token=?",(ptoken,)).fetchone()
+    c=db()
+    c.execute("BEGIN IMMEDIATE")
+    p=c.execute("SELECT * FROM participants WHERE token=?",(ptoken,)).fetchone()
     if not p: c.close(); abort(404)
     t=c.execute("SELECT * FROM tastings WHERE id=?",(p["tasting_id"],)).fetchone()
+    if p["submitted"]:
+        c.close()
+        return redirect(url_for("submitted",ptoken=ptoken))
     if t["status"]!="OPEN": c.close(); return redirect(url_for("taste",ptoken=ptoken))
     total=c.execute("SELECT COUNT(*) n FROM tasting_apples WHERE tasting_id=?",(t["id"],)).fetchone()["n"]
     rated=c.execute("""SELECT COUNT(*) n FROM entries e JOIN tasting_apples ta ON ta.id=e.tasting_apple_id
@@ -183,7 +263,20 @@ def submit(ptoken):
     if total and rated==total:
         c.execute("UPDATE participants SET submitted=1 WHERE id=?",(p["id"],)); c.commit()
     c.close()
+    if total and rated==total:
+        return redirect(url_for("submitted",ptoken=ptoken))
     return redirect(url_for("taste",ptoken=ptoken))
+
+@app.route("/p/<ptoken>/submitted")
+def submitted(ptoken):
+    c=db()
+    p=c.execute("SELECT * FROM participants WHERE token=?",(ptoken,)).fetchone()
+    if not p: c.close(); abort(404)
+    t=c.execute("SELECT * FROM tastings WHERE id=?",(p["tasting_id"],)).fetchone()
+    c.close()
+    if not p["submitted"]:
+        return redirect(url_for("taste",ptoken=ptoken))
+    return render_template("submitted.html",t=t,p=p,checked=request.args.get("checked")=="1")
 
 @app.route("/results/<token>")
 def results(token):

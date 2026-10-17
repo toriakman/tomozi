@@ -9,29 +9,61 @@
 <label>Rating <span>0.0–10.0</span></label><input class="rating" type="number" min="0" max="10" step=".1" value="{{'' if r.rating is none else '%.1f'|format(r.rating)}}" placeholder="8.7" {% if t.status!="OPEN" %}disabled{% endif %}>
 <label>Notes <span>optional</span></label><textarea class="notes" placeholder="Crisp, tart, honey finish…" {% if t.status!="OPEN" %}disabled{% endif %}>{{r.notes or ''}}</textarea>
 </div></article>{% endfor %}</div>
-{% if t.status=="OPEN" %}<form method="post" action="{{url_for('submit',ptoken=p.token)}}" id="submitForm"><button id="submitBtn" disabled>Review complete tasting</button><p class="muted" id="missing"></p></form>{% endif %}
-{% if p.submitted %}<div class="success">✓ Your ratings have been submitted. You can still edit and resubmit while the tasting is open.</div>{% endif %}
+{% if t.status=="OPEN" %}<form method="post" action="{{url_for('submit',ptoken=p.token)}}" id="submitForm"><button id="submitBtn" disabled>Submit ratings</button><p class="muted" id="missing"></p></form>{% endif %}
+<p class="save-error notice" id="saveError" role="alert" hidden></p>
 {% endblock %}{% block script %}<script>
 const cards=[...document.querySelectorAll('.taste-card')], token={{p.token|tojson}};
 function refresh(){
  let rated=cards.filter(c=>c.querySelector('.rating').value!=='').length;
  document.querySelector('#progress').textContent=`${rated} of ${cards.length} rated`;
- let b=document.querySelector('#submitBtn'); if(b)b.disabled=rated!==cards.length;
+ let b=document.querySelector('#submitBtn'); if(b)b.disabled=submitting||rated!==cards.length;
  let miss=cards.filter(c=>c.querySelector('.rating').value==='').map(c=>c.querySelector('.num').textContent);
  let m=document.querySelector('#missing'); if(m)m.textContent=miss.length?`Still to rate: ${miss.join(', ')}`:'All apples rated ✓';
 }
-let timers={};
+let timers={}, queue=Promise.resolve(), submitting=false;
+const saves=new Map(), errorBox=document.querySelector('#saveError'), form=document.querySelector('#submitForm');
+function showError(message){errorBox.textContent=message;errorBox.hidden=false}
 cards.forEach(c=>{
  const rating=c.querySelector('.rating'), notes=c.querySelector('.notes');
- async function save(){
-   let val=rating.value;
-   if(val!==''&&(Number(val)<0||Number(val)>10)) return;
-   await fetch(`/api/p/${token}/entry`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasting_apple_id:c.dataset.id,rating:val,notes:notes.value})});
+ function save(){
+  const val=rating.value;
+  if(val!==''&&(!Number.isFinite(Number(val))||Number(val)<0||Number(val)>10))return Promise.reject(new Error('Please enter a rating between 0 and 10.'));
+  const payload={tasting_apple_id:c.dataset.id,rating:val,notes:notes.value};
+  // Serialize writes so an older autosave cannot overwrite a newer one.
+  const pending=queue.catch(()=>{}).then(async()=>{
+   const response=await fetch(`/api/p/${token}/entry`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+   if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.error||'Your ratings could not be saved. Please try again.')}
    if(val!==''){c.classList.add('complete');c.classList.remove('progress');c.querySelector('.check').textContent='✓ Rated';c.querySelector('.score').textContent=Number(val).toFixed(1)}
-   else {c.classList.remove('complete'); if(notes.value){c.classList.add('progress');c.querySelector('.check').textContent='Notes added'}else{c.classList.remove('progress');c.querySelector('.check').textContent='Not rated'} c.querySelector('.score').textContent='—'}
+   else {c.classList.remove('complete');c.classList.toggle('progress',Boolean(payload.notes));c.querySelector('.check').textContent=payload.notes?'Notes added':'Not rated';c.querySelector('.score').textContent='—'}
    refresh();
+  });
+  queue=pending;
+  return pending;
  }
- [rating,notes].forEach(el=>el.addEventListener('input',()=>{clearTimeout(timers[c.dataset.id]);timers[c.dataset.id]=setTimeout(save,450)}));
+ saves.set(c,save);
+ [rating,notes].forEach(el=>el.addEventListener('input',()=>{
+  if(submitting)return;
+  clearTimeout(timers[c.dataset.id]);
+  timers[c.dataset.id]=setTimeout(()=>save().catch(error=>showError(error.message)),450);
+  refresh();
+ }));
 });
+if(form)form.addEventListener('submit',async event=>{
+ event.preventDefault();if(submitting)return;
+ submitting=true;errorBox.hidden=true;
+ const button=document.querySelector('#submitBtn');button.disabled=true;button.textContent='Submitting…';
+ cards.forEach(c=>{clearTimeout(timers[c.dataset.id]);c.querySelectorAll('input,textarea').forEach(el=>el.disabled=true)});
+ try{
+  // Flush every card, including the last keystroke, before making submission final.
+  const finalSaves=cards.map(c=>saves.get(c)());
+  await Promise.all(finalSaves);
+  HTMLFormElement.prototype.submit.call(form);
+ }catch(error){
+  submitting=false;button.textContent='Submit ratings';
+  cards.forEach(c=>c.querySelectorAll('input,textarea').forEach(el=>el.disabled=false));
+  showError(error.message);refresh();
+ }
+});
+window.addEventListener('pageshow',event=>{if(event.persisted)window.location.reload()});
 refresh();
 </script>{% endblock %}

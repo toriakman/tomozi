@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block body %}
+<div class="eyebrow">HOST DASHBOARD</div><h1>{{t.name}}</h1>
+<div class="status {{t.status|lower}}">{{t.status}}</div>
+<div class="stat"><strong>{{submitted}} of {{active}}</strong><span>active tasters submitted</span></div>
+<div class="actions"><a class="button secondary" href="{{url_for('setup',admin=t.admin_token)}}">Edit lineup</a>
+{% if t.status!="OPEN" %}<form method="post" action="{{url_for('status',admin=t.admin_token)}}"><input type="hidden" name="status" value="OPEN"><button>{{"Reopen tasting" if t.status=="CLOSED" else "Launch tasting"}}</button></form>{% endif %}
+{% if t.status=="OPEN" %}<form method="post" action="{{url_for('status',admin=t.admin_token)}}"><input type="hidden" name="status" value="CLOSED"><button>Close & calculate</button></form>{% endif %}</div>
+{% if t.status!="DRAFT" %}<section class="panel"><h2>Invite tasters</h2><p>Share this link or turn it into a QR code with your phone's share menu.</p><input readonly value="{{join_url}}" onclick="this.select()"></section>{% endif %}
+<section><h2>Participants</h2>{% if ps %}<div class="people">{% for p in ps %}<div class="person"><div><strong>{{p.name}}</strong><small>{% if p.submitted %}✓ Submitted{% elif p.activity %}In progress{% else %}Joined · not started{% endif %}</small></div><form method="post" action="{{url_for('remove_participant',admin=t.admin_token,pid=p.id)}}"><button class="ghost">Remove</button></form></div>{% endfor %}</div>{% else %}<p class="muted">Nobody has joined yet.</p>{% endif %}</section>
+{% if t.status=="CLOSED" %}<a class="button" href="{{results_url}}">View final results →</a>{% endif %}
+{% endblock %}

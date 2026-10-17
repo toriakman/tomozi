@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block body %}<div class="eyebrow">FINAL RESULTS</div><h1>{{t.name}}</h1><p class="lede">The apples have spoken.</p>
+<div class="leaderboard">{% for r in rows %}<div class="result"><div class="rank">{{loop.index}}</div><div><small>APPLE #{{r.position}}</small><h2>{{r.name}}</h2><span>{{r.votes}} ratings</span></div><strong>{{"%.2f"|format(r.avg_rating) if r.avg_rating is not none else "—"}}</strong></div>{% endfor %}</div>{% endblock %}

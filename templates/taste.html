@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% block body %}
+<div class="eyebrow">{{t.name}}</div><div class="taste-head"><h1>Hi, {{p.name}}.</h1><div id="progress"></div></div>
+{% if t.status!="OPEN" %}<div class="notice">The host has closed this tasting. Your saved ratings are safe.</div>{% endif %}
+<div class="grid" id="cards">{% for r in rows %}
+<article class="taste-card {% if r.rating is not none %}complete{% elif r.notes %}progress{% endif %}" data-id="{{r.id}}">
+<div class="cardtop"><span class="num">#{{r.position}}</span><span class="check">{% if r.rating is not none %}✓ Rated{% elif r.notes %}Notes added{% else %}Not rated{% endif %}</span></div>
+<div class="score">{% if r.rating is not none %}{{"%.1f"|format(r.rating)}}{% else %}—{% endif %}</div>
+<div class="editor">
+<label>Rating <span>0.0–10.0</span></label><input class="rating" type="number" min="0" max="10" step=".1" value="{{'' if r.rating is none else '%.1f'|format(r.rating)}}" placeholder="8.7" {% if t.status!="OPEN" %}disabled{% endif %}>
+<label>Notes <span>optional</span></label><textarea class="notes" placeholder="Crisp, tart, honey finish…" {% if t.status!="OPEN" %}disabled{% endif %}>{{r.notes or ''}}</textarea>
+</div></article>{% endfor %}</div>
+{% if t.status=="OPEN" %}<form method="post" action="{{url_for('submit',ptoken=p.token)}}" id="submitForm"><button id="submitBtn" disabled>Review complete tasting</button><p class="muted" id="missing"></p></form>{% endif %}
+{% if p.submitted %}<div class="success">✓ Your ratings have been submitted. You can still edit and resubmit while the tasting is open.</div>{% endif %}
+{% endblock %}{% block script %}<script>
+const cards=[...document.querySelectorAll('.taste-card')], token={{p.token|tojson}};
+function refresh(){
+ let rated=cards.filter(c=>c.querySelector('.rating').value!=='').length;
+ document.querySelector('#progress').textContent=`${rated} of ${cards.length} rated`;
+ let b=document.querySelector('#submitBtn'); if(b)b.disabled=rated!==cards.length;
+ let miss=cards.filter(c=>c.querySelector('.rating').value==='').map(c=>c.querySelector('.num').textContent);
+ let m=document.querySelector('#missing'); if(m)m.textContent=miss.length?`Still to rate: ${miss.join(', ')}`:'All apples rated ✓';
+}
+let timers={};
+cards.forEach(c=>{
+ const rating=c.querySelector('.rating'), notes=c.querySelector('.notes');
+ async function save(){
+   let val=rating.value;
+   if(val!==''&&(Number(val)<0||Number(val)>10)) return;
+   await fetch(`/api/p/${token}/entry`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasting_apple_id:c.dataset.id,rating:val,notes:notes.value})});
+   if(val!==''){c.classList.add('complete');c.classList.remove('progress');c.querySelector('.check').textContent='✓ Rated';c.querySelector('.score').textContent=Number(val).toFixed(1)}
+   else {c.classList.remove('complete'); if(notes.value){c.classList.add('progress');c.querySelector('.check').textContent='Notes added'}else{c.classList.remove('progress');c.querySelector('.check').textContent='Not rated'} c.querySelector('.score').textContent='—'}
+   refresh();
+ }
+ [rating,notes].forEach(el=>el.addEventListener('input',()=>{clearTimeout(timers[c.dataset.id]);timers[c.dataset.id]=setTimeout(save,450)}));
+});
+refresh();
+</script>{% endblock %}

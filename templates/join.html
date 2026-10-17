@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block body %}<div class="eyebrow">YOU'RE INVITED</div><h1>{{t.name}}</h1>
+<p class="lede">Your apples are a mystery until the final reveal.</p>{% if t.status=="OPEN" %}
+<form method="post" class="panel"><label>What's your name?</label><input name="name" required autocomplete="name" placeholder="Tori"><button>Start tasting →</button></form>
+{% else %}<div class="panel">This tasting isn't open right now.</div>{% endif %}{% endblock %}

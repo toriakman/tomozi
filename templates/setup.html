@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block body %}
+<a class="back" href="{{url_for('dashboard',admin=t.admin_token)}}">← Host dashboard</a>
+<div class="eyebrow">SETUP</div><h1>{{t.name}}</h1><p class="lede">Put the apples in the exact order they'll appear on the tasting table.</p>
+<form method="post"><div id="lineup">
+{% if current %}{% for x in current %}<div class="apple-row"><b>#{{loop.index}}</b><input name="apple" list="apples" value="{{x.name}}" required><button type="button" class="ghost remove">×</button></div>{% endfor %}
+{% else %}<div class="apple-row"><b>#1</b><input name="apple" list="apples" placeholder="Search or type a custom apple" required><button type="button" class="ghost remove">×</button></div>{% endif %}
+</div><datalist id="apples">{% for a in apples %}<option value="{{a}}">{% endfor %}</datalist>
+<div class="actions"><button type="button" class="secondary" id="add">+ Add apple</button><button>Save lineup</button></div></form>
+{% endblock %}{% block script %}<script>
+const line=document.querySelector('#lineup');
+function renumber(){[...line.children].forEach((r,i)=>r.querySelector('b').textContent='#'+(i+1))}
+document.querySelector('#add').onclick=()=>{if(line.children.length>=50)return;let d=document.createElement('div');d.className='apple-row';d.innerHTML='<b></b><input name="apple" list="apples" placeholder="Search or type a custom apple" required><button type="button" class="ghost remove">×</button>';line.append(d);renumber()}
+line.onclick=e=>{if(e.target.classList.contains('remove')&&line.children.length>1){e.target.parentElement.remove();renumber()}}
+</script>{% endblock %}

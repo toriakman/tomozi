@@ -41,8 +41,8 @@ class SubmissionTests(unittest.TestCase):
         response = self.submit()
         self.assertEqual(response.headers['Location'], self.confirmation)
         html = self.client.get(self.confirmation).get_data(as_text=True)
-        self.assertIn('Your ratings have been submitted.', html)
-        self.assertIn('Your submission is final.', html)
+        self.assertIn('Thanks for submitting your ratings.', html)
+        self.assertIn('Check back later for results.', html)
         self.assertNotIn('class="rating"', html)
 
     def test_saved_and_stale_urls_cannot_edit_submitted_ratings(self):
@@ -62,30 +62,27 @@ class SubmissionTests(unittest.TestCase):
         self.submit()
         self.assertEqual(self.submit().headers['Location'], self.confirmation)
 
-    def test_closed_confirmation_offers_results_without_redirecting(self):
+    def test_refresh_opens_results_once_closed(self):
         self.save()
         self.submit()
         self.client.post(f'/host/{self.admin}/status', data={'status': 'CLOSED'})
         response = self.client.get(self.confirmation)
-        self.assertEqual(response.status_code, 200)
-        html = response.get_data(as_text=True)
-        self.assertIn('Results are in!', html)
-        self.assertIn('View results', html)
-        self.assertIn('href="' + self.results + '"', html)
-        self.assertNotIn('Check for results', html)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['Location'], self.results)
         self.assertIn('8.50', self.client.get(self.results).get_data(as_text=True))
 
-    def test_checking_while_open_keeps_waiting_button(self):
+    def test_refresh_while_open_keeps_simple_confirmation_without_buttons(self):
         self.save()
         self.submit()
-        for _ in range(2):
-            response = self.client.get(self.confirmation + '?checked=1')
+        for suffix in ['', '?checked=1']:
+            response = self.client.get(self.confirmation + suffix)
             self.assertEqual(response.status_code, 200)
             html = response.get_data(as_text=True)
-            self.assertIn('Not quite yet.', html)
-            self.assertIn('check back later', html)
-            self.assertIn('Check for results', html)
+            self.assertIn('Thanks for submitting your ratings.', html)
+            self.assertIn('Check back later for results.', html)
+            self.assertNotIn('Check for results', html)
             self.assertNotIn('View results', html)
+            self.assertNotIn('<button', html)
 
     def test_reopening_does_not_unlock_submissions(self):
         self.save()

@@ -3,22 +3,8 @@
 <div class="eyebrow">{{t.name}}</div>
 <section class="submission-confirmation">
 <div class="confirmation-seal" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></div>
-{% if t.status=="CLOSED" %}
-<h1>Results are in!</h1>
-<p class="lede">The tasting is complete. Ready for the reveal?</p>
-<div class="panel">
-<h2>Meet your favorite apples.</h2>
-<p>See how everyone rated the apples and find out which came out on top.</p>
-<a class="button" href="{{url_for('results',token=t.results_token)}}">View results</a>
-</div>
-{% else %}
-<h1>You're all set, {{p.name}}.</h1>
-<p class="lede">Your ratings have been submitted. Thank you for tasting!</p>
-<div class="panel">
-<h2>{{"Not quite yet." if checked else "The reveal is coming."}}</h2>
-<p>Your submission is final. {% if checked %}The tasting is still open. Give everyone a little more time and check back later—there's no need to keep refreshing.{% else %}Once everyone has finished and the host closes the tasting, the results will be ready. Take a break and check back later.{% endif %}</p>
-<a class="button" href="{{url_for('submitted',ptoken=p.token,checked=1)}}">Check for results</a>
-</div>
-{% endif %}
+<h1>Thanks for submitting your ratings.</h1>
+<p class="lede">Check back later for results.</p>
+<p class="muted">Refresh this page after the host closes the tasting to see the results.</p>
 </section>
 {% endblock %}

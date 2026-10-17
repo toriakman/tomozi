@@ -279,7 +279,9 @@ def submitted(ptoken):
     c.close()
     if not p["submitted"]:
         return redirect(url_for("taste",ptoken=ptoken))
-    return render_template("submitted.html",t=t,p=p,checked=request.args.get("checked")=="1")
+    if t["status"]=="CLOSED":
+        return redirect(url_for("results",token=t["results_token"]))
+    return render_template("submitted.html",t=t,p=p)
 
 @app.route("/results/<token>")
 def results(token):
